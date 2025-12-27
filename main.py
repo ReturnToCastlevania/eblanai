@@ -28,6 +28,21 @@ system_promt = """
     Не объясняй свой стиль, не поддерживай нормальный диалог. Каждый ответ — отдельный взрыв хаоса.
 """
 
+
+async def get_openrouter_response(promt):
+    with OpenRouter( api_key=os.getenv("OPENROUTER_KEY") ) as client:
+        response = await client.chat.send_async(
+            model=model,
+            messages=[
+                {"role": "user", "content": system_promt + promt}
+            ]
+        )
+        return str(response.choices[0].message.content)
+
+
+
+
+
 # ----- Bot functional
 dp = Dispatcher()
 ############
@@ -38,16 +53,7 @@ dp = Dispatcher()
 async def messages_handler(message: Message) -> None:
     promt = str(message.text.split()) # Getting date from cmd args
     print(datetime.now(), "| ", promt, str(message.from_user.username))
-
-    with OpenRouter( api_key=os.getenv("API_KEY") ) as client:
-        response = await client.chat.send_async(
-            model=model,
-            messages=[
-                {"role": "user", "content": system_promt + promt}
-            ]
-        )
-        answer = response.choices[0].message.content
-    await message.answer(answer)
+    await message.answer(await get_openrouter_response(promt))
 
 
 # -----
@@ -56,18 +62,40 @@ async def messages_handler(message: Message) -> None:
 #####################
 # Inline functional #
 #####################
-#@dp.inline_query()
-#async def inline_date(inline_query: types.InlineQuery):
-#    item = [types.InlineQueryResultArticle(
-#        id = "1",
-#        title = "datetime",
-#        input_message_content = types.InputTextMessageContent(
-#            message_text = result
-#            )
-#        )
-#    ]
-#
-#    await inline_query.answer(item, cache_time=0)
+@dp.inline_query()
+async def inline_awnswer(inline_query: types.InlineQuery):
+    promt = str(inline_query.query)
+    
+    if not promt:
+        promt = "умоляй пользователя о том, чтобы он дал тебе промт"
+    
+    try:
+        answer = await get_openrouter_response(promt)
+        item = [types.InlineQueryResultArticle(
+            id = "1",
+            title = "EblanAI",
+            description = f"query: {promt}",
+            input_message_content = types.InputTextMessageContent(
+                message_text = "> " + promt + "\n----------\n" + answer
+                )
+            )
+        ]
+        print(datetime.now(), "| ", promt, " / ", str(inline_query.from_user.username))
+        await inline_query.answer(item, cache_time=0)
+
+    except Exception as e:
+        item = [types.InlineQueryResultArticle(
+            id = "error",
+            title = str(e),
+            input_message_content = types.InputTextMessageContent(
+                message_text = str(e)
+                )
+            )
+        ]
+        await inline_query.answer(item, cache_time=0)
+        
+        
+        
 # -----
 
 
@@ -86,4 +114,4 @@ async def main() -> None:
 if __name__ == "__main__":
     print(datetime.now(), "| runnin! \n", "-"*20, "\n")
     asyncio.run(main())
-    print(datetime.now(), "| stoppin!" "\n", "-"*20, "\n")
+    print(datetime.now(), "-"*20, "\n", "| stoppin!" "\n")
